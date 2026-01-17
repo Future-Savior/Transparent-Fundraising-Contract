@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="zh-Hans">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AidVaultLite Demo (Monad Testnet)</title>
+
+    <!-- 快速变好看：Tailwind CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- ethers.js (v5, 兼容最广) -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  </head>
+
+  <body class="min-h-screen bg-slate-950 text-slate-100">
+    <div class="max-w-3xl mx-auto px-6 py-10">
+      <!-- Header -->
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-semibold tracking-tight">AidVaultLite</h1>
+          <p class="mt-1 text-slate-300">
+            Transparent Donation Escrow on <span class="font-medium">Monad Testnet</span>
+          </p>
+          <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
+            <span class="inline-flex items-center gap-2 rounded-full bg-slate-800 px-3 py-1">
+              <span class="h-2 w-2 rounded-full bg-amber-400" id="netDot"></span>
+              <span id="netText">未连接</span>
+            </span>
+            <a id="contractExplorer" target="_blank" class="underline text-slate-300 hover:text-white">
+              在 MonadVision 查看合约
+            </a>
+          </div>
+        </div>
+
+        <div class="flex flex-col items-end gap-2">
+          <button
+            id="btnConnect"
+            class="rounded-xl bg-indigo-500 px-4 py-2 font-medium hover:bg-indigo-400 active:bg-indigo-600"
+          >
+            连接钱包
+          </button>
+          <div class="text-sm text-slate-300">
+            钱包：<a id="walletExplorer" target="_blank" class="underline hover:text-white"><span id="walletShort">未连接</span></a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main cards -->
+      <div class="mt-8 grid gap-4">
+        <!-- Contract info -->
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-lg font-semibold">合约信息</h2>
+            <div class="flex items-center gap-2">
+              <button
+                id="btnCopyContract"
+                class="rounded-lg border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
+              >
+                复制合约地址
+              </button>
+              <button
+                id="btnRefresh"
+                class="rounded-lg border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
+              >
+                刷新数据
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-3 break-all text-sm text-slate-300">
+            <div>Contract: <span id="contractFull" class="text-slate-100"></span></div>
+          </div>
+
+          <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="rounded-xl bg-slate-950/60 p-4 border border-slate-800">
+              <div class="text-xs text-slate-400">合约余额</div>
+              <div class="mt-1 text-xl font-semibold" id="contractBalance">-</div>
+            </div>
+            <div class="rounded-xl bg-slate-950/60 p-4 border border-slate-800">
+              <div class="text-xs text-slate-400">Total Donated</div>
+              <div class="mt-1 text-xl font-semibold" id="totalDonated">-</div>
+            </div>
+            <div class="rounded-xl bg-slate-950/60 p-4 border border-slate-800">
+              <div class="text-xs text-slate-400">Goal</div>
+              <div class="mt-1 text-xl font-semibold" id="goal">-</div>
+            </div>
+            <div class="rounded-xl bg-slate-950/60 p-4 border border-slate-800">
+              <div class="text-xs text-slate-400">Beneficiary</div>
+              <div class="mt-1 text-sm text-slate-100 break-all" id="beneficiary">-</div>
+            </div>
+          </div>
+
+          <div class="mt-3 text-sm text-slate-300">
+            <div>Deadline: <span id="deadline">-</span></div>
+            <div>Cancelled: <span id="cancelled">-</span></div>
+            <div>My donated: <span id="myDonated">-</span></div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+            <h2 class="text-lg font-semibold">捐款 Donate</h2>
+            <p class="mt-1 text-sm text-slate-300">
+              输入捐款金额（单位 MON），点击 Donate。你也可以用另一个钱包打开同一页面来捐。
+            </p>
+
+            <div class="mt-4 flex gap-2">
+              <input
+                id="donateAmount"
+                placeholder="例如：0.005"
+                class="w-full rounded-xl bg-slate-950/60 border border-slate-800 px-4 py-2 outline-none focus:border-indigo-400"
+              />
+              <button
+                id="btnDonate"
+                class="rounded-xl bg-emerald-500 px-4 py-2 font-medium hover:bg-emerald-400 active:bg-emerald-600"
+              >
+                Donate
+              </button>
+            </div>
+
+            <div class="mt-3 text-xs text-slate-400">
+              小提示：如果提示切换网络，会自动引导切换到 Monad Testnet（10143）。
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+            <h2 class="text-lg font-semibold">放款 / 退款</h2>
+            <p class="mt-1 text-sm text-slate-300">
+              Withdraw：达到 goal 才会成功。Refund：取消或过期且未达标时才会成功。
+            </p>
+
+            <div class="mt-4 flex flex-col gap-2">
+              <button
+                id="btnWithdraw"
+                class="rounded-xl bg-indigo-500 px-4 py-2 font-medium hover:bg-indigo-400 active:bg-indigo-600"
+              >
+                Withdraw to Beneficiary
+              </button>
+
+              <button
+                id="btnRefund"
+                class="rounded-xl border border-slate-700 px-4 py-2 font-medium hover:bg-slate-800"
+              >
+                Refund (if eligible)
+              </button>
+            </div>
+
+            <div class="mt-3 text-xs text-slate-400">
+              演示建议：两次 Donate → TotalDonated 达到 Goal → Withdraw → 去 MonadVision 对照交易记录。
+            </div>
+          </div>
+        </div>
+
+        <!-- Logs -->
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-semibold">日志</h2>
+            <button
+              id="btnClearLog"
+              class="rounded-lg border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
+            >
+              清空
+            </button>
+          </div>
+          <div id="logBox" class="mt-3 space-y-2 text-sm"></div>
+        </div>
+
+        <div class="text-xs text-slate-500">
+          ⚠️ 仅用于测试网演示。不要在真实资金环境使用这份 demo 代码。
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ======= 你的部署信息（只要改这里就能复用） =======
+      const CONTRACT_ADDRESS = "0x595f0D1fc18D5C15D768461c3DD1d956d0fC1141";
+      const EXPLORER_BASE = "https://testnet.monadvision.com";
+      const SYMBOL = "MON";
+
+      // Monad Testnet: 10143 (hex 0x279F)
+      const TARGET_CHAIN_ID_DEC = 10143;
+      const TARGET_CHAIN_ID_HEX = "0x279F";
+      const RPC_URL = "https://testnet-rpc.monad.xyz";
+
+      // 只保留你需要的最小 ABI（不用你去 Remix 复制 ABI）
+      const ABI = [
+        { "inputs": [], "name": "donate", "outputs": [], "stateMutability": "payable", "type": "function" },
+        { "inputs": [], "name": "withdrawToBeneficiary", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+        { "inputs": [], "name": "refund", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+
+        { "inputs": [], "name": "goal", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
+        { "inputs": [], "name": "totalDonated", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
+        { "inputs": [], "name": "beneficiary", "outputs": [{ "internalType": "address payable", "name": "", "type": "address" }], "stateMutability": "view", "type": "function" },
+        { "inputs": [], "name": "deadline", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
+        { "inputs": [], "name": "cancelled", "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }], "stateMutability": "view", "type": "function" },
+        { "inputs": [], "name": "creator", "outputs": [{ "internalType": "address", "name": "", "type": "address" }], "stateMutability": "view", "type": "function" },
+        { "inputs": [{ "internalType": "address", "name": "", "type": "address" }], "name": "donated", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" }
+      ];
+
+      // ======= 状态变量 =======
+      let provider, signer, contract, userAddress;
+
+      // ======= 小工具 =======
+      const $ = (id) => document.getElementById(id);
+      const shortAddr = (a) => (a ? a.slice(0, 6) + "..." + a.slice(-4) : "-");
+      const fmt = (bn) => `${Number(ethers.utils.formatEther(bn)).toLocaleString()} ${SYMBOL}`;
+      const logBox = $("logBox");
+
+      function addLog(text, type = "info", txHash = null) {
+        const color =
+          type === "error" ? "text-red-300" :
+          type === "success" ? "text-emerald-300" :
+          "text-slate-200";
+
+        const div = document.createElement("div");
+        div.className = `rounded-xl border border-slate-800 bg-slate-950/40 p-3 ${color}`;
+
+        const time = new Date().toLocaleTimeString();
+        let html = `<div class="text-xs text-slate-500">${time}</div><div class="mt-1">${text}</div>`;
+
+        if (txHash) {
+          const txUrl = `${EXPLORER_BASE}/tx/${txHash}`;
+          html += `<div class="mt-2 text-xs text-slate-300">Tx: <a class="underline hover:text-white" target="_blank" href="${txUrl}">${shortAddr(txHash)}</a>（如果打不开，把 hash 粘贴到 MonadVision 搜索框）</div>`;
+        }
+
+        div.innerHTML = html;
+        logBox.prepend(div);
+      }
+
+      function parseErr(e) {
+        const msg = (e?.error?.message || e?.data?.message || e?.message || String(e));
+        return msg.replace("execution reverted:", "").trim();
+      }
+
+      async function ensureMonadNetwork() {
+        const chainId = await window.ethereum.request({ method: "eth_chainId" });
+        if (chainId === TARGET_CHAIN_ID_HEX) return true;
+
+        try {
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: TARGET_CHAIN_ID_HEX }]
+          });
+          return true;
+        } catch (e) {
+          // 4902: unknown chain
+          if (e.code === 4902) {
+            await window.ethereum.request({
+              method: "wallet_addEthereumChain",
+              params: [{
+                chainId: TARGET_CHAIN_ID_HEX,
+                chainName: "Monad Testnet",
+                rpcUrls: [RPC_URL],
+                nativeCurrency: { name: SYMBOL, symbol: SYMBOL, decimals: 18 },
+                blockExplorerUrls: [EXPLORER_BASE]
+              }]
+            });
+            return true;
+          }
+          throw e;
+        }
+      }
+
+      async function connect() {
+        if (!window.ethereum) {
+          alert("没有检测到 MetaMask 插件。请用安装了 MetaMask 的浏览器打开该页面。");
+          return;
+        }
+
+        await ensureMonadNetwork();
+
+        provider = new ethers.providers.Web3Provider(window.ethereum, "any");
+        await provider.send("eth_requestAccounts", []);
+        signer = provider.getSigner();
+        userAddress = await signer.getAddress();
+        contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+
+        $("walletShort").textContent = shortAddr(userAddress);
+        $("walletExplorer").href = `${EXPLORER_BASE}/address/${userAddress}`;
+
+        $("btnConnect").textContent = "已连接";
+        $("btnConnect").disabled = true;
+
+        addLog(`钱包已连接：${userAddress}`, "success");
+        await refresh();
+
+        // 监听切号/切链（简单粗暴：刷新页面）
+        window.ethereum.on("accountsChanged", () => location.reload());
+        window.ethereum.on("chainChanged", () => location.reload());
+      }
+
+      async function refresh() {
+        if (!window.ethereum) return;
+
+        // 网络状态展示
+        let chainIdHex = "0x0";
+        try { chainIdHex = await window.ethereum.request({ method: "eth_chainId" }); } catch (_) {}
+        const ok = (chainIdHex === TARGET_CHAIN_ID_HEX);
+        $("netText").textContent = ok ? "Monad Testnet (10143)" : `当前网络不是 Monad（${chainIdHex}）`;
+        $("netDot").className = `h-2 w-2 rounded-full ${ok ? "bg-emerald-400" : "bg-amber-400"}`;
+
+        $("contractFull").textContent = CONTRACT_ADDRESS;
+        $("contractExplorer").href = `${EXPLORER_BASE}/address/${CONTRACT_ADDRESS}`;
+
+        if (!provider) {
+          provider = new ethers.providers.Web3Provider(window.ethereum, "any");
+        }
+        if (!contract && signer) {
+          contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+        }
+
+        const bal = await provider.getBalance(CONTRACT_ADDRESS);
+        $("contractBalance").textContent = fmt(bal);
+
+        if (!contract) return;
+
+        const goal = await contract.goal();
+        const total = await contract.totalDonated();
+        const beneficiary = await contract.beneficiary();
+        const deadline = await contract.deadline();
+        const cancelled = await contract.cancelled();
+
+        $("goal").textContent = fmt(goal);
+        $("totalDonated").textContent = fmt(total);
+        $("beneficiary").textContent = beneficiary;
+        $("cancelled").textContent = String(cancelled);
+
+        const deadlineMs = Number(deadline.toString()) * 1000;
+        $("deadline").textContent = isFinite(deadlineMs) ? new Date(deadlineMs).toLocaleString() : "-";
+
+        if (userAddress) {
+          const mine = await contract.donated(userAddress);
+          $("myDonated").textContent = fmt(mine);
+        }
+      }
+
+      async function donate() {
+        try {
+          if (!contract) await connect();
+          const amount = $("donateAmount").value.trim();
+          if (!amount || Number(amount) <= 0) {
+            alert("请输入捐款金额，比如 0.005");
+            return;
+          }
+
+          $("btnDonate").disabled = true;
+          addLog(`准备捐款：${amount} ${SYMBOL} ...`);
+
+          const tx = await contract.donate({ value: ethers.utils.parseEther(amount) });
+          addLog("交易已发送，等待确认…", "info", tx.hash);
+
+          await tx.wait();
+          addLog("捐款成功 ✅", "success", tx.hash);
+
+          $("donateAmount").value = "";
+          await refresh();
+        } catch (e) {
+          addLog("捐款失败：" + parseErr(e), "error");
+        } finally {
+          $("btnDonate").disabled = false;
+        }
+      }
+
+      async function withdraw() {
+        try {
+          if (!contract) await connect();
+          $("btnWithdraw").disabled = true;
+
+          addLog("发起 Withdraw（需要 totalDonated >= goal 才会成功）...");
+          const tx = await contract.withdrawToBeneficiary();
+          addLog("交易已发送，等待确认…", "info", tx.hash);
+
+          await tx.wait();
+          addLog("Withdraw 成功 ✅", "success", tx.hash);
+
+          await refresh();
+        } catch (e) {
+          addLog("Withdraw 失败：" + parseErr(e), "error");
+        } finally {
+          $("btnWithdraw").disabled = false;
+        }
+      }
+
+      async function refund() {
+        try {
+          if (!contract) await connect();
+          $("btnRefund").disabled = true;
+
+          addLog("发起 Refund（取消或过期且未达标才会成功）...");
+          const tx = await contract.refund();
+          addLog("交易已发送，等待确认…", "info", tx.hash);
+
+          await tx.wait();
+          addLog("Refund 成功 ✅", "success", tx.hash);
+
+          await refresh();
+        } catch (e) {
+          addLog("Refund 失败：" + parseErr(e), "error");
+        } finally {
+          $("btnRefund").disabled = false;
+        }
+      }
+
+      // ======= 绑定按钮 =======
+      $("btnConnect").addEventListener("click", connect);
+      $("btnDonate").addEventListener("click", donate);
+      $("btnWithdraw").addEventListener("click", withdraw);
+      $("btnRefund").addEventListener("click", refund);
+      $("btnRefresh").addEventListener("click", refresh);
+      $("btnClearLog").addEventListener("click", () => (logBox.innerHTML = ""));
+
+      $("btnCopyContract").addEventListener("click", async () => {
+        await navigator.clipboard.writeText(CONTRACT_ADDRESS);
+        addLog("已复制合约地址 ✅", "success");
+      });
+
+      // 初次填充合约链接
+      $("contractExplorer").href = `${EXPLORER_BASE}/address/${CONTRACT_ADDRESS}`;
+      $("contractFull").textContent = CONTRACT_ADDRESS;
+
+      addLog("提示：如果 MetaMask 连接按钮无反应，请把 Replit 预览页面“在新标签页打开”（不要在 IDE 内嵌预览里操作）。", "info");
+    </script>
+  </body>
+</html>

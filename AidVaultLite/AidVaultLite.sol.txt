@@ -1,0 +1,64 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+contract AidVaultLite {
+    address public creator;
+    address payable public beneficiary;
+    uint256 public deadline;
+    uint256 public goal;
+    uint256 public totalDonated;
+    bool public cancelled;
+
+    mapping(address => uint256) public donated;
+
+    event Donated(address indexed donor, uint256 amount, uint256 total);
+    event Withdrawn(address indexed beneficiary, uint256 amount);
+    event Refunded(address indexed donor, uint256 amount);
+    event Cancelled();
+
+    constructor(address payable _beneficiary, uint256 _deadline, uint256 _goal) {
+        require(_beneficiary != address(0), "bad beneficiary");
+        require(_deadline > block.timestamp, "bad deadline");
+        require(_goal > 0, "bad goal");
+        creator = msg.sender;
+        beneficiary = _beneficiary;
+        deadline = _deadline;
+        goal = _goal;
+    }
+
+    function donate() external payable {
+        require(!cancelled, "cancelled");
+        require(block.timestamp <= deadline, "deadline passed");
+        require(msg.value > 0, "no value");
+        totalDonated += msg.value;
+        donated[msg.sender] += msg.value;
+        emit Donated(msg.sender, msg.value, totalDonated);
+    }
+
+    function cancel() external {
+        require(msg.sender == creator, "not creator");
+        require(totalDonated == 0, "already donated");
+        cancelled = true;
+        emit Cancelled();
+    }
+
+    function withdrawToBeneficiary() external {
+        require(!cancelled, "cancelled");
+        require(totalDonated >= goal, "goal not reached");
+        uint256 bal = address(this).balance;
+        require(bal > 0, "no balance");
+        (bool ok, ) = beneficiary.call{value: bal}("");
+        require(ok, "transfer failed");
+        emit Withdrawn(beneficiary, bal);
+    }
+
+    function refund() external {
+        require(cancelled || (block.timestamp > deadline && totalDonated < goal), "not refundable");
+        uint256 amt = donated[msg.sender];
+        require(amt > 0, "nothing");
+        donated[msg.sender] = 0;
+        (bool ok, ) = payable(msg.sender).call{value: amt}("");
+        require(ok, "refund failed");
+        emit Refunded(msg.sender, amt);
+    }
+}
